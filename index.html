@@ -1,85 +1,124 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GOOSESHOT.IO - AERIAL ARENA FPS</title>
-    <!-- Core 3D engine framework and native look controls addon libraries -->
-    <script src="https://cloudflare.com"></script>
-    <script src="https://jsdelivr.net"></script>
+    <title>GOOSE SHOT 3D</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%; background: #07020d; font-family: 'Arial Black', sans-serif; user-select: none; }
-        canvas { display: block; width: 100%; height: 100%; }
-        
-        /* Tactical Crosshair */
-        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 16px; height: 16px; pointer-events: none; z-index: 5; }
-        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #00ffcc; }
-        #crosshair::before { top: 7px; left: -8px; width: 32px; height: 2px; }
-        #crosshair::after { top: -8px; left: 7px; width: 2px; height: 32px; }
-
-        #hitmarker { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); width: 44px; height: 44px; pointer-events: none; z-index: 6; transition: transform 0.04s ease; }
-
-        /* HUD Structure */
-        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; box-sizing: border-box; }
-        #match-meta { position: absolute; top: 25px; left: 25px; color: #ff33aa; font-size: 13px; letter-spacing: 2px; text-shadow: 2px 2px #000; line-height: 1.6; }
-        .score-banner { font-size: 36px; color: #fff; font-weight: bold; }
-        
-        #ammo-card { position: absolute; bottom: 30px; right: 40px; text-align: right; color: #fff; text-shadow: 2px 2px #000; }
-        #weapon-lbl { color: #00ffcc; font-size: 13px; letter-spacing: 1px; }
-        #ammo-num { font-size: 55px; font-weight: bold; color: #fff; }
-
-        #health-container { position: absolute; bottom: 30px; left: 40px; width: 250px; background: rgba(0,0,0,0.5); padding: 5px; border: 2px solid #222; border-radius: 4px; }
-        #health-fill { height: 15px; width: 100%; background: #00ff66; transition: width 0.1s; }
-
-        #damage-flash { position: absolute; top:0; left:0; width:100%; height:100%; box-shadow: inset 0 0 100px rgba(255,0,0,0); transition: box-shadow 0.08s; pointer-events: none; z-index: 2; }
-        #hint-banner { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: #fff; background: rgba(0,0,0,0.7); padding: 8px 20px; border-radius: 20px; font-size: 11px; pointer-events: none; display: none; text-align: center; letter-spacing: 1px; }
-
-        /* Main Menu panels */
-        #lobby-menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #1f0326 0%, #031b33 100%); padding: 50px; border: 3px solid #ff33aa; text-align: center; box-shadow: 0 0 40px rgba(255,51,170,0.5); z-index: 10; color: #fff; border-radius: 8px; width: 360px; }
-        #matchmaking-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #07030f; padding: 40px; border: 2px dashed #00ffcc; text-align: center; color: #00ffcc; border-radius: 8px; display: none; width: 330px; z-index: 10; box-shadow: 0 0 25px rgba(0,255,204,0.3); }
-        button { background: #ff33aa; color: #fff; border: none; padding: 18px; font-size: 15px; font-weight: bold; letter-spacing: 2px; cursor: pointer; margin-top: 15px; width: 100%; font-family: inherit; border-radius: 4px; box-shadow: 0 4px 0 #b3006b; transition: all 0.1s; }
-        button:hover { background: #ff55bb; transform: translateY(-1px); }
-        button:active { transform: translateY(1px); box-shadow: none; }
-        .invite-notice { margin-top: 20px; background: rgba(255,255,255,0.04); padding: 12px; border-radius: 4px; font-size: 12px; color: #999; border: 1px dashed #333; }
-        .loader-ring { display: inline-block; width: 35px; height: 35px; border: 4px solid rgba(0,255,204,0.2); border-radius: 50%; border-top-color: #00ffcc; animation: spin 1s linear infinite; margin-bottom: 15px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        body, html { margin:0; padding:0; overflow:hidden; width:100%; height:100%; background:#0a0314; font-family:sans-serif; user-select:none; }
+        canvas { display:block; width:100%; height:100%; background:#0c0214; }
+        #hud { position:absolute; top:20px; left:20px; color:#ff33aa; font-size:24px; pointer-events:none; display:none; font-weight:bold; }
+        #cross { position:absolute; top:50%; left:50%; width:10px; height:10px; background:#00ffcc; transform:translate(-50%,-50%); border-radius:50%; pointer-events:none; display:none; }
+        #menu { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#13141f; padding:40px; border:3px solid #ff33aa; text-align:center; color:#fff; border-radius:8px; width:280px; }
+        button { background:#ff33aa; color:#fff; border:none; padding:15px; font-size:16px; font-weight:bold; cursor:pointer; width:100%; margin-top:20px; }
     </style>
 </head>
 <body>
-
-    <div id="damage-flash"></div>
-    <div id="hint-banner">CLICK SCREEN TO RESUME COMBAT — WASD TO MOVE — SPACEBAR TO AIR JUMP — WHEEL OR KEYS 1-3 TO SWAP WEAPONS</div>
-
-    <!-- HUD Layer -->
-    <div id="hud">
-        <div id="crosshair"></div>
-        <svg id="hitmarker" viewBox="0 0 100 100">
-            <line x1="15" y1="15" x2="35" y2="35" stroke="#00ffcc" stroke-width="12"/>
-            <line x1="85" y1="15" x2="65" y2="35" stroke="#00ffcc" stroke-width="12"/>
-            <line x1="15" y1="85" x2="35" y2="65" stroke="#00ffcc" stroke-width="12"/>
-            <line x1="85" y1="85" x2="65" y2="65" stroke="#00ffcc" stroke-width="12"/>
-        </svg>
-        <div id="match-meta">GOOSESHOT.IO Arena<br>SCORE: <span id="scoreVal" class="score-banner">0</span></div>
-        <div id="health-container"><div id="health-fill"></div></div>
-        <div id="ammo-card"><div id="weapon-lbl">EGG-LAUNCHER (1)</div><div><span id="ammo-num">∞</span></div></div>
+    <div id="hud">SCORE: <span id="score">0</span> | GUN: <span id="gun">NAILGUN</span></div>
+    <div id="cross"></div>
+    <div id="menu">
+        <h1>GOOSE SHOT 3D</h1>
+        <p style="color:#00ffcc; font-size:12px;">3D AERIAL ARENA</p>
+        <button onclick="start()">PLAY MATCH</button>
     </div>
+    <canvas id="gameCanvas"></canvas>
 
-    <!-- Menu Panels -->
-    <div id="lobby-menu">
-        <h1>GOOSE SHOT</h1>
-        <p style="font-size:11px; color:#aaa; margin:5px 0 25px 0; letter-spacing:1px;">AERIAL GOOSE ARENA FPS</p>
-        <button onclick="startMatchmakingQueue()">DEPLOY IN ARENA</button>
-        <div class="invite-notice">🪶 Challenge your flock! Share your custom page link to invite others.</div>
-    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let active = false, score = 0, weapon = 0;
+        let player = { x:0, y:2, z:0, yaw:0, pitch:0, vY:0 }, move = { w:0, s:0, a:0, d:0 }, grounded = true;
+        let targets = [], pads = [], bullets = [], lastShot = 0;
+        const GUNS = [{n:"NAILGUN",r:120},{n:"ROCKET LAUNCHER",r:800},{n:"RAILGUN",r:1150}];
+        const GEESE = ["Guard Goose", "Mallard Mercenary", "Canada Commando"];
 
-    <div id="matchmaking-screen">
-        <div class="loader-ring"></div>
-        <div style="font-size:18px; font-weight:bold; letter-spacing:1px;">GATHERING FLOCK</div>
-        <div id="queue-status" style="font-size:12px; color:#777; margin-top:10px; font-family:monospace;">PINGING MATCH TICKETS...</div>
-    </div>
+        function start() {
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('cross').style.display = 'block';
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            pads = [{x:0, z:-25}, {x:-30, z:20}, {x:30, z:15}];
+            for(let i=0; i<5; i++) {
+                targets.push({ x:(Math.random()-0.5)*80, y:1.5, z:(Math.random()-0.5)*80-30, r:1.3, n:GEESE[i%3], c:["#ffffff","#4a5357","#6e503b"][i%3] });
+            }
+            window.addEventListener('keydown', e => handleKeys(e, 1));
+            window.addEventListener('keyup', e => handleKeys(e, 0));
+            window.addEventListener('mousemove', e => {
+                if(!active) return;
+                player.yaw -= (e.movementX || 0) * 0.003; player.pitch -= (e.movementY || 0) * 0.003;
+                player.pitch = Math.max(-1.4, Math.min(1.4, player.pitch));
+            });
+            canvas.addEventListener('click', () => canvas.requestPointerLock());
+            window.addEventListener('mousedown', e => { if(active && e.button===0) shoot(); });
+            active = true; loop();
+        }
 
-    <!-- Sequential execution pipelines loading step-by-step -->
-    <script src="goose_matchmaker.js"></script>
-    <script src="goose_engine.js"></script>
+        function handleKeys(e, s) {
+            let k = e.key.toLowerCase();
+            if(k==='w') move.w=s; if(k==='s') move.s=s; if(k==='a') move.l=s; if(k==='d') move.r=s;
+            if(s===1) {
+                if(e.code==='Space' && grounded) { player.vY = 16; grounded = false; }
+                if(k==='1') { weapon=0; updateHUD(); } if(k==='2') { weapon=1; updateHUD(); } if(k==='3') { weapon=2; updateHUD(); }
+            }
+        }
+        function updateHUD() { document.getElementById('gun').innerText = GUNS[weapon].n; }
+
+        function shoot() {
+            let now = Date.now(); if(now - lastShot < GUNS[weapon].r) return; lastShot = now;
+            let cP = Math.cos(player.pitch), sP = Math.sin(player.pitch), cY = Math.cos(player.yaw), sY = Math.sin(player.yaw);
+            bullets.push({ x:player.x, y:player.y, z:player.z, dx:-sY*cP*2.5, dy:sP*2.5, dz:-cY*cP*2.5, isRocket:(weapon===1) });
+        }
+
+        function explode(pos) {
+            if(Math.hypot(player.x-pos.x, player.z-pos.z) < 8.5) { player.vY += 15; grounded = false; }
+            targets.forEach(t => { if(Math.hypot(t.x-pos.x, t.z-pos.z) < 8.5) { score+=50; t.x=(Math.random()-0.5)*80; t.z=(Math.random()-0.5)*80; } });
+        }
+
+        function project(x, y, z) {
+            let cx = x-player.x, cy = y-player.y, cz = z-player.z;
+            let cY = Math.cos(-player.yaw), sY = Math.sin(-player.yaw), cP = Math.cos(-player.pitch), sP = Math.sin(-player.pitch);
+            let rx = cx*cY - cz*sY, rz = cx*sY + cz*cY, ry = cy*cP - rz*sP, tZ = cy*sP + rz*cP;
+            if (tZ <= 0.2) return null;
+            let s = (canvas.width/2) / (tZ * Math.tan(75 * Math.PI/360));
+            return { x:(canvas.width/2)+rx*s, y:(canvas.height/2)-ry*s, size:(1/tZ)*s };
+        }
+
+        function loop() {
+            if(!active) return;
+            ctx.fillStyle = "#0a0314"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            if(!grounded) player.vY -= 35 * 0.016; player.y += player.vY * 0.016;
+            if(player.y <= 2) { player.y = 2; player.vY = 0; grounded = true; }
+            let sY = Math.sin(player.yaw), cY = Math.cos(player.yaw);
+            if(move.w) { player.x -= sY*0.16; player.z -= cY*0.16; } if(move.s) { player.x += sY*0.16; player.z += cY*0.16; }
+            if(move.a) { player.x -= cY*0.16; player.z += sY*0.16; } if(move.d) { player.x += cY*0.16; player.z -= sY*0.16; }
+
+            pads.forEach(pad => {
+                if(Math.hypot(player.x-pad.x, player.z-pad.z) < 3.5 && player.y <= 2.2) { player.vY = 29; grounded = false; }
+                let sPos = project(pad.x, 0, pad.z);
+                if(sPos) { ctx.beginPath(); ctx.arc(sPos.x, sPos.y, sPos.size*2.5, 0, Math.PI*2); ctx.fillStyle = "#ffff00"; ctx.fill(); }
+            });
+
+            targets.forEach(t => {
+                let dX = player.x-t.x, dZ = player.z-t.z, angle = Math.atan2(dZ, dX);
+                t.x += Math.cos(angle)*0.03; t.z += Math.sin(angle)*0.03;
+                let sPos = project(t.x, t.y, t.z);
+                if(sPos) {
+                    ctx.beginPath(); ctx.arc(sPos.x, sPos.y, sPos.size*t.r, 0, Math.PI*2); ctx.fillStyle = t.c; ctx.fill();
+                    ctx.beginPath(); ctx.arc(sPos.x+(sPos.size*0.4), sPos.y, sPos.size*0.3, 0, Math.PI*2); ctx.fillStyle = "#ff6600"; ctx.fill();
+                    ctx.fillStyle = "#fff"; ctx.font = `${Math.max(10, sPos.size*0.4)}px sans-serif`; ctx.textAlign = "center";
+                    ctx.fillText(t.n, sPos.x, sPos.y - (sPos.size*t.r) - 10);
+                }
+            });
+
+            for(let i=bullets.length-1; i>=0; i--) {
+                let b = bullets[i]; b.x += b.dx; b.y += b.dy; b.z += b.dz; let hit = false;
+                if(b.y <= 0.1 || Math.hypot(b.x, b.z) > 150) { if(b.isRocket) explode(b); hit = true; }
+                targets.forEach(t => { if(Math.hypot(b.x-t.x, b.z-t.z)<1.8 && Math.abs(b.y-t.y)<1.8) { if(b.isRocket) explode(b); else { score+=100; t.x=(Math.random()-0.5)*80; t.z=(Math.random()-0.5)*80; } hit = true; } });
+                let sPos = project(b.x, b.y, b.z); if(sPos && !hit) { ctx.beginPath(); ctx.arc(sPos.x, sPos.y, sPos.size*0.15, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill(); }
+                if(hit) bullets.splice(i, 1);
+            }
+            ctx.fillStyle = "#ff33aa"; ctx.fillRect(canvas.width * 0.7, canvas.height * 0.7, 70, 140);
+            document.getElementById('score').innerText = score;
+            requestAnimationFrame(loop);
+        }
+    </script>
 </body>
 </html>
