@@ -1,61 +1,117 @@
 const canvas = document.getElementById('gameScreen');
 const ctx = canvas.getContext('2d');
 
-// Size setup dynamically
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
-window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 
-// State parameters
 let gameRunning = false;
 let score = 0;
-let player = { x: canvas.width / 2, y: canvas.height / 2, radius: 16, color: '#00ff00', speed: 5 };
+let player = { x: canvas.width / 2, y: canvas.height / 2, radius: 18, color: '#66fcf1', speed: 4.5, health: 100, maxHealth: 100 };
 let inputKeys = {};
 let playerBullets = [];
 let localBots = [];
 
-// Movement Listeners
-window.addEventListener('keydown', e => { inputKeys[e.key.toLowerCase()] = true; });
+// Weapon Mechanics
+let ammo = 30;
+let maxAmmo = 30;
+let isReloading = false;
+let lastShotTime = 0;
+let fireRate = 150; // Milliseconds between automatic rifle shots
+
+window.addEventListener('keydown', e => { inputKeys[e.key.toLowerCase()] = true; if(e.key.toLowerCase() === 'r') reloadWeapon(); });
 window.addEventListener('keyup', e => { inputKeys[e.key.toLowerCase()] = false; });
 
-// Shooting Engine
-window.addEventListener('click', e => {
-    if (!gameRunning) return;
-    // Track exact angle from canvas player anchor to mouse pointer pixel coordinates
-    let targetAngle = Math.atan2(e.clientY - player.y, e.clientX - player.x);
+// Keep tracking mouse position for player rotation
+let mousePos = { x: 0, y: 0 };
+window.addEventListener('mousemove', e => { mousePos.x = e.clientX; mousePos.y = e.clientY; });
+
+// Automatic firing loop when holding down mouse click
+let isFiring = false;
+window.addEventListener('mousedown', () => isFiring = true);
+window.addEventListener('mouseup', () => isFiring = false);
+
+function shootBullet() {
+    if (!gameRunning || isReloading || ammo <= 0) return;
+    let currentTime = Date.now();
+    if (currentTime - lastShotTime < fireRate) return;
+
+    let targetAngle = Math.atan2(mousePos.y - player.y, mousePos.x - player.x);
     playerBullets.push({
-        x: player.x,
-        y: player.y,
-        vectorX: Math.cos(targetAngle) * 9,
-        vectorY: Math.sin(targetAngle) * 9,
-        radius: 4
+        x: player.x + Math.cos(targetAngle) * player.radius,
+        y: player.y + Math.sin(targetAngle) * player.radius,
+        vectorX: Math.cos(targetAngle) * 14, // High bullet velocity
+        vectorY: Math.sin(targetAngle) * 14,
+        radius: 3
     });
-});
+
+    ammo--;
+    document.getElementById('ammo-val').innerText = ammo;
+    lastShotTime = currentTime;
+
+    if (ammo <= 0) reloadWeapon();
+}
+
+function reloadWeapon() {
+    if (isReloading || ammo === maxAmmo) return;
+    isReloading = true;
+    document.getElementById('weapon-name').innerText = "RELOADING...";
+    setTimeout(() => {
+        ammo = maxAmmo;
+        document.getElementById('ammo-val').innerText = ammo;
+        document.getElementById('weapon-name').innerText = "M4A1 TACTICAL";
+        isReloading = false;
+    }, 1500); // 1.5s reload time
+}
+
+function triggerHitmarker() {
+    let hm = document.getElementById('hitmarker');
+    hm.style.transform = "translate(-50%, -50%) scale(1)";
+    setTimeout(() => { hm.style.transform = "translate(-50%, -50%) scale(0)"; }, 50);
+}
+
+function damagePlayer(amount) {
+    player.health -= amount;
+    if (player.health < 0) player.health = 0;
+    
+    // UI damage responses
+    document.getElementById('health-bar').style.width = player.health + "%";
+    document.getElementById('health-text').innerText = `HEALTH: ${player.health}%`;
+    document.getElementById('damage-flash').style.boxShadow = "inset 0 0 100px rgba(255,0,0,0.8)";
+    setTimeout(() => { document.getElementById('damage-flash').style.boxShadow = "inset 0 0 100px rgba(255,0,0,0)"; }, 100);
+
+    if (player.health <= 0) {
+        alert("WASTED! Match Over.");
+        location.reload();
+    }
+}
+
+// COD Auto Health Regen Loop
+setInterval(() => {
+    if (gameRunning && player.health < player.maxHealth && player.health > 0) {
+        player.health = Math.min(player.maxHealth, player.health + 5);
+        document.getElementById('health-bar').style.width = player.health + "%";
+        document.getElementById('health-text').innerText = `HEALTH: ${player.health}%`;
+    }
+}, 1000);
 
 function launchSoloMatch() {
     document.getElementById('menu-container').style.display = 'none';
+    document.getElementById('hud').style.display = 'block';
     gameRunning = true;
-    
-    // Spawn 4 automated enemy bot entities across random map points
-    for(let i = 0; i < 4; i++) { spawnNewBot(); }
-    
+    for(let i = 0; i < 5; i++) { spawnNewBot(); }
     runEngineLoop();
 }
 
-function launchPartyMatch() {
-    const code = document.getElementById('partyCodeInput').value;
-    if(!code) { alert("Please input a party code code room string!"); return; }
-    // Standalone fallback activation block if external master network socket handshake misses
-    launchSoloMatch();
-}
+function launchPartyMatch() { launchSoloMatch(); }
 
 function spawnNewBot() {
     localBots.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        radius: 15,
+        radius: 16,
         color: '#ff3333',
-        speed: 2.2
+        speed: 1.8,
+        lastShot: 0
     });
 }
 
@@ -63,31 +119,40 @@ function runEngineLoop() {
     if (!gameRunning) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply Player Local Velocity Vector adjustments
+    if (isFiring) shootBullet();
+
+    // Player WASD Movement
     if (inputKeys['w'] || inputKeys['arrowup']) player.y -= player.speed;
     if (inputKeys['s'] || inputKeys['arrowdown']) player.y += player.speed;
     if (inputKeys['a'] || inputKeys['arrowleft']) player.x -= player.speed;
     if (inputKeys['d'] || inputKeys['arrowright']) player.x += player.speed;
 
-    // Boundary constraints lock
-    player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
-    player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
-
-    // Render User Vector Profile
+    // Draw Tactical Player model (facing mouse)
+    let lookAngle = Math.atan2(mousePos.y - player.y, mousePos.x - player.x);
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(lookAngle);
+    
+    // Draw Soldier body
     ctx.beginPath();
-    ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+    ctx.arc(0, 0, player.radius, 0, Math.PI * 2);
     ctx.fillStyle = player.color;
     ctx.fill();
     ctx.closePath();
+    
+    // Draw Weapon barrel line pointing forward
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, -3, player.radius + 12, 6);
+    ctx.restore();
 
-    // Loop & Clean Bullet Coordinates arrays
+    // Bullets Physics
     playerBullets.forEach((bullet, bIndex) => {
         bullet.x += bullet.vectorX;
         bullet.y += bullet.vectorY;
         
         ctx.beginPath();
         ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffff00';
+        ctx.fillStyle = '#66fcf1';
         ctx.fill();
         ctx.closePath();
 
@@ -96,36 +161,45 @@ function runEngineLoop() {
         }
     });
 
-    // Run AI Pathfinder Tracking algorithms
+    // Enemy Bot AI & Enemy Gun Fire
     localBots.forEach((bot, botIndex) => {
-        let distanceX = player.x - bot.x;
-        let distanceY = player.y - bot.y;
-        let vectorLength = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+        let dx = player.x - bot.x;
+        let dy = player.y - bot.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (vectorLength > 2) {
-            bot.x += (distanceX / vectorLength) * bot.speed;
-            bot.y += (distanceY / vectorLength) * bot.speed;
+        // Bots flank close to you
+        if (dist > 150) {
+            bot.x += (dx / dist) * bot.speed;
+            bot.y += (dy / dist) * bot.speed;
         }
 
-        // Draw active enemy units
+        // Tactical Bot Fire: Bot shoots bullet vectors at human player every 1.5 seconds
+        let now = Date.now();
+        if (dist < 400 && now - bot.lastShot > 1500) {
+            damagePlayer(15); // Takes 15% health off player per hit
+            bot.lastShot = now;
+        }
+
+        // Draw Enemy Bot
         ctx.beginPath();
         ctx.arc(bot.x, bot.y, bot.radius, 0, Math.PI * 2);
         ctx.fillStyle = bot.color;
         ctx.fill();
         ctx.closePath();
 
-        // Hit registration verification
+        // Hit Detection against Bots
         playerBullets.forEach((bullet, bulletIndex) => {
-            let hitDistX = bullet.x - bot.x;
-            let hitDistY = bullet.y - bot.y;
-            let hitMagnitude = Math.sqrt(hitDistX * hitDistX + hitDistY * hitDistY);
+            let hDx = bullet.x - bot.x;
+            let hDy = bullet.y - bot.y;
+            let hDist = Math.sqrt(hDx * hDx + hDy * hDy);
 
-            if (hitMagnitude < bot.radius + bullet.radius) {
+            if (hDist < bot.radius + bullet.radius) {
                 localBots.splice(botIndex, 1);
                 playerBullets.splice(bulletIndex, 1);
-                score += 10;
+                triggerHitmarker();
+                score += 100; // COD style score tallies
                 document.getElementById('scoreBox').innerText = score;
-                setTimeout(spawnNewBot, 2000); // Re-instantiate bot in 2 seconds
+                setTimeout(spawnNewBot, 2000);
             }
         });
     });
