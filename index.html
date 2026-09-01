@@ -1,124 +1,195 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>GOOSE SHOT 3D</title>
+    <meta charset="UTF-8">
+    <title>GOOSE SHOT 3D .IO</title>
+    <!-- Load the official A-Frame 3D Engine and standard FPS physics modules -->
+    <script src="https://aframe.io"></script>
+    <script src="https://jsdelivr.net"></script>
     <style>
-        body, html { margin:0; padding:0; overflow:hidden; width:100%; height:100%; background:#0a0314; font-family:sans-serif; user-select:none; }
-        canvas { display:block; width:100%; height:100%; background:#0c0214; }
-        #hud { position:absolute; top:20px; left:20px; color:#ff33aa; font-size:24px; pointer-events:none; display:none; font-weight:bold; }
-        #cross { position:absolute; top:50%; left:50%; width:10px; height:10px; background:#00ffcc; transform:translate(-50%,-50%); border-radius:50%; pointer-events:none; display:none; }
-        #menu { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#13141f; padding:40px; border:3px solid #ff33aa; text-align:center; color:#fff; border-radius:8px; width:280px; }
-        button { background:#ff33aa; color:#fff; border:none; padding:15px; font-size:16px; font-weight:bold; cursor:pointer; width:100%; margin-top:20px; }
+        body, html { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%; background: #000; font-family: sans-serif; user-select: none; }
+        /* Arcade HUD Display */
+        #hud { position: absolute; top: 20px; left: 20px; color: #ff33aa; font-size: 28px; font-weight: bold; pointer-events: none; z-index: 10; text-shadow: 2px 2px #000; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 14px; height: 14px; transform: translate(-50%, -50%); border: 2px solid #00ffcc; border-radius: 50%; pointer-events: none; z-index: 10; }
     </style>
 </head>
 <body>
-    <div id="hud">SCORE: <span id="score">0</span> | GUN: <span id="gun">NAILGUN</span></div>
-    <div id="cross"></div>
-    <div id="menu">
-        <h1>GOOSE SHOT 3D</h1>
-        <p style="color:#00ffcc; font-size:12px;">3D AERIAL ARENA</p>
-        <button onclick="start()">PLAY MATCH</button>
-    </div>
-    <canvas id="gameCanvas"></canvas>
+
+    <div id="hud">SCORE: <span id="scoreVal">0</span> | WEAPON: ROCKET LAUNCHER</div>
+    <div id="crosshair"></div>
+
+    <!-- The 3D World Scene containing low-gravity arcade physics -->
+    <a-scene physics="gravity: -35; debug: false">
+        
+        <!-- Cyber-Neon Sky and Lighting Ambient Environments -->
+        <a-sky color="#0d041c"></a-sky>
+        <a-ambient-light color="#444"></a-ambient-light>
+        <a-directional-light color="#ff33aa" intensity="0.8" position="-10 30 10"></a-directional-light>
+        <a-directional-light color="#00ffcc" intensity="0.5" position="10 20 -10"></a-directional-light>
+
+        <!-- Dynamic First-Person Player Rig (Handles mouse looking, camera height, and WASD keys) -->
+        
+            
+                <!-- 3D Rocket Launcher Mesh locked floating in front of your camera view -->
+                <a-box id="weapon" color="#ff33aa" width="0.1" height="0.1" depth="0.7" position="0.25 -0.25 -0.5" roughness="0.2"></a-box>
+            
+        
+
+        <!-- Massive Grid Map Combat Floor Arena -->
+        <a-plane static-body color="#131722" width="200" height="200" rotation="-90 0 0" roughness="0.9"></a-plane>
+        <a-grid color="#ff33aa" width="200" height="200"></a-grid>
+
+        <!-- Winding Combat Obstacle Perimeter Structures (Concrete Cover Blocks) -->
+        <a-box static-body color="#1c2333" width="15" height="6" depth="2" position="0 3 -20"></a-box>
+        <a-box static-body color="#1c2333" width="2" height="6" depth="25" position="-20 3 -5"></a-box>
+        <a-box static-body color="#1c2333" width="25" height="6" depth="2" position="20 3 15"></a-box>
+
+        <!-- Yellow Aerial Jump-Pads (Launches player skyward when stepped onto) -->
+        <a-cylinder id="pad1" color="#ffff00" radius="3.5" height="0.2" position="0 0.1 -10"></a-cylinder>
+        <a-cylinder id="pad2" color="#ffff00" radius="3.5" height="0.2" position="-15 0.1 15"></a-cylinder>
+        <a-cylinder id="pad3" color="#ffff00" radius="3.5" height="0.2" position="20 0.1 -5"></a-cylinder>
+
+        <!-- Automated 3D Threat Nodes (Moving Target Capsules) -->
+        
+
+    </a-scene>
 
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        let active = false, score = 0, weapon = 0;
-        let player = { x:0, y:2, z:0, yaw:0, pitch:0, vY:0 }, move = { w:0, s:0, a:0, d:0 }, grounded = true;
-        let targets = [], pads = [], bullets = [], lastShot = 0;
-        const GUNS = [{n:"NAILGUN",r:120},{n:"ROCKET LAUNCHER",r:800},{n:"RAILGUN",r:1150}];
-        const GEESE = ["Guard Goose", "Mallard Mercenary", "Canada Commando"];
+        let score = 0;
+        const playerEntity = document.getElementById('player');
+        const weaponMesh = document.getElementById('weapon');
+        const enemiesContainer = document.getElementById('enemies-container');
+        const activeProjectilesList = [];
+        const activeBotsList = [];
 
-        function start() {
-            document.getElementById('menu').style.display = 'none';
-            document.getElementById('hud').style.display = 'block';
-            document.getElementById('cross').style.display = 'block';
-            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-            pads = [{x:0, z:-25}, {x:-30, z:20}, {x:30, z:15}];
-            for(let i=0; i<5; i++) {
-                targets.push({ x:(Math.random()-0.5)*80, y:1.5, z:(Math.random()-0.5)*80-30, r:1.3, n:GEESE[i%3], c:["#ffffff","#4a5357","#6e503b"][i%3] });
-            }
-            window.addEventListener('keydown', e => handleKeys(e, 1));
-            window.addEventListener('keyup', e => handleKeys(e, 0));
-            window.addEventListener('mousemove', e => {
-                if(!active) return;
-                player.yaw -= (e.movementX || 0) * 0.003; player.pitch -= (e.movementY || 0) * 0.003;
-                player.pitch = Math.max(-1.4, Math.min(1.4, player.pitch));
+        // Spawn 3D bot targets across the map
+        for (let i = 0; i < 5; i++) {
+            let bot = document.createElement('a-capsule');
+            bot.setAttribute('color', '#00ffcc');
+            bot.setAttribute('radius', '0.6');
+            bot.setAttribute('height', '1.6');
+            resetBotPosition(bot);
+            enemiesContainer.appendChild(bot);
+            activeBotsList.push(bot);
+        }
+
+        function resetBotPosition(bot) {
+            bot.setAttribute('position', {
+                x: (Math.random() - 0.5) * 80,
+                y: 0.8, // Half height anchor placement
+                z: (Math.random() - 0.5) * 80 - 15
             });
-            canvas.addEventListener('click', () => canvas.requestPointerLock());
-            window.addEventListener('mousedown', e => { if(active && e.button===0) shoot(); });
-            active = true; loop();
         }
 
-        function handleKeys(e, s) {
-            let k = e.key.toLowerCase();
-            if(k==='w') move.w=s; if(k==='s') move.s=s; if(k==='a') move.l=s; if(k==='d') move.r=s;
-            if(s===1) {
-                if(e.code==='Space' && grounded) { player.vY = 16; grounded = false; }
-                if(k==='1') { weapon=0; updateHUD(); } if(k==='2') { weapon=1; updateHUD(); } if(k==='3') { weapon=2; updateHUD(); }
-            }
-        }
-        function updateHUD() { document.getElementById('gun').innerText = GUNS[weapon].n; }
+        // Fire Projectiles on mouse left-clicks
+        window.addEventListener('mousedown', (e) => {
+            if (e.button !== 0 || !document.pointerLockElement) return;
 
-        function shoot() {
-            let now = Date.now(); if(now - lastShot < GUNS[weapon].r) return; lastShot = now;
-            let cP = Math.cos(player.pitch), sP = Math.sin(player.pitch), cY = Math.cos(player.yaw), sY = Math.sin(player.yaw);
-            bullets.push({ x:player.x, y:player.y, z:player.z, dx:-sY*cP*2.5, dy:sP*2.5, dz:-cY*cP*2.5, isRocket:(weapon===1) });
-        }
+            // Weapon kick recoil animation values
+            weaponMesh.setAttribute('position', '0.25 -0.25 -0.4');
+            setTimeout(() => { weaponMesh.setAttribute('position', '0.25 -0.25 -0.5'); }, 60);
 
-        function explode(pos) {
-            if(Math.hypot(player.x-pos.x, player.z-pos.z) < 8.5) { player.vY += 15; grounded = false; }
-            targets.forEach(t => { if(Math.hypot(t.x-pos.x, t.z-pos.z) < 8.5) { score+=50; t.x=(Math.random()-0.5)*80; t.z=(Math.random()-0.5)*80; } });
-        }
+            // Compute exact direction vector out from camera lens tracking paths
+            const cameraEl = document.getElementById('camera');
+            const directionVector = new THREE.Vector3(0, 0, -1);
+            directionVector.applyQuaternion(cameraEl.object3D.quaternion);
 
-        function project(x, y, z) {
-            let cx = x-player.x, cy = y-player.y, cz = z-player.z;
-            let cY = Math.cos(-player.yaw), sY = Math.sin(-player.yaw), cP = Math.cos(-player.pitch), sP = Math.sin(-player.pitch);
-            let rx = cx*cY - cz*sY, rz = cx*sY + cz*cY, ry = cy*cP - rz*sP, tZ = cy*sP + rz*cP;
-            if (tZ <= 0.2) return null;
-            let s = (canvas.width/2) / (tZ * Math.tan(75 * Math.PI/360));
-            return { x:(canvas.width/2)+rx*s, y:(canvas.height/2)-ry*s, size:(1/tZ)*s };
-        }
+            // Spawn floating projectile tracing spheres directly into world memory space
+            let ball = document.createElement('a-sphere');
+            ball.setAttribute('color', '#ffff00');
+            ball.setAttribute('radius', '0.15');
+            
+            let startPos = playerEntity.getAttribute('position');
+            ball.setAttribute('position', { x: startPos.x, y: startPos.y, z: startPos.z });
+            ball.velocity = directionVector.multiplyScalar(1.5); // Tracer travel velocity scale
+            
+            document.querySelector('a-scene').appendChild(ball);
+            activeProjectilesList.push(ball);
+        });
 
+        // Main game ticker animation tracking loop processing frames
         function loop() {
-            if(!active) return;
-            ctx.fillStyle = "#0a0314"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            if(!grounded) player.vY -= 35 * 0.016; player.y += player.vY * 0.016;
-            if(player.y <= 2) { player.y = 2; player.vY = 0; grounded = true; }
-            let sY = Math.sin(player.yaw), cY = Math.cos(player.yaw);
-            if(move.w) { player.x -= sY*0.16; player.z -= cY*0.16; } if(move.s) { player.x += sY*0.16; player.z += cY*0.16; }
-            if(move.a) { player.x -= cY*0.16; player.z += sY*0.16; } if(move.d) { player.x += cY*0.16; player.z -= sY*0.16; }
+            requestAnimationFrame(loop);
 
-            pads.forEach(pad => {
-                if(Math.hypot(player.x-pad.x, player.z-pad.z) < 3.5 && player.y <= 2.2) { player.vY = 29; grounded = false; }
-                let sPos = project(pad.x, 0, pad.z);
-                if(sPos) { ctx.beginPath(); ctx.arc(sPos.x, sPos.y, sPos.size*2.5, 0, Math.PI*2); ctx.fillStyle = "#ffff00"; ctx.fill(); }
-            });
+            let pPos = playerEntity.getAttribute('position');
 
-            targets.forEach(t => {
-                let dX = player.x-t.x, dZ = player.z-t.z, angle = Math.atan2(dZ, dX);
-                t.x += Math.cos(angle)*0.03; t.z += Math.sin(angle)*0.03;
-                let sPos = project(t.x, t.y, t.z);
-                if(sPos) {
-                    ctx.beginPath(); ctx.arc(sPos.x, sPos.y, sPos.size*t.r, 0, Math.PI*2); ctx.fillStyle = t.c; ctx.fill();
-                    ctx.beginPath(); ctx.arc(sPos.x+(sPos.size*0.4), sPos.y, sPos.size*0.3, 0, Math.PI*2); ctx.fillStyle = "#ff6600"; ctx.fill();
-                    ctx.fillStyle = "#fff"; ctx.font = `${Math.max(10, sPos.size*0.4)}px sans-serif`; ctx.textAlign = "center";
-                    ctx.fillText(t.n, sPos.x, sPos.y - (sPos.size*t.r) - 10);
+            // 1. Check Jump-Pad Collisions (Launches you up smoothly if stepping over yellow discs)
+            const padsList = [
+                {x: 0, z: -10}, {x: -15, z: 15}, {x: 20, z: -5}
+            ];
+            padsList.forEach(pad => {
+                let dist = Math.hypot(pPos.x - pad.x, pPos.z - pad.z);
+                if (dist < 3.5 && pPos.y <= 0.2) {
+                    // Inject structural kinematic lift force straight onto player tracking matrix
+                    let currentVelocity = playerEntity.body.velocity;
+                    playerEntity.body.velocity.set(currentVelocity.x, 26, currentVelocity.z);
                 }
             });
 
-            for(let i=bullets.length-1; i>=0; i--) {
-                let b = bullets[i]; b.x += b.dx; b.y += b.dy; b.z += b.dz; let hit = false;
-                if(b.y <= 0.1 || Math.hypot(b.x, b.z) > 150) { if(b.isRocket) explode(b); hit = true; }
-                targets.forEach(t => { if(Math.hypot(b.x-t.x, b.z-t.z)<1.8 && Math.abs(b.y-t.y)<1.8) { if(b.isRocket) explode(b); else { score+=100; t.x=(Math.random()-0.5)*80; t.z=(Math.random()-0.5)*80; } hit = true; } });
-                let sPos = project(b.x, b.y, b.z); if(sPos && !hit) { ctx.beginPath(); ctx.arc(sPos.x, sPos.y, sPos.size*0.15, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill(); }
-                if(hit) bullets.splice(i, 1);
+            // 2. Animate and track active bullets trajectories
+            for (let i = activeProjectilesList.length - 1; i >= 0; i--) {
+                let b = activeProjectilesList[i];
+                let bPos = b.getAttribute('position');
+
+                b.setAttribute('position', {
+                    x: bPos.x + b.velocity.x,
+                    y: bPos.y + b.velocity.y,
+                    z: bPos.z + b.velocity.z
+                });
+
+                let hitRegistered = false;
+
+                // Check hit registry marks against active target loops
+                activeBotsList.forEach(bot => {
+                    let botPos = bot.getAttribute('position');
+                    let targetDistance = Math.hypot(bPos.x - botPos.x, bPos.z - botPos.z);
+                    
+                    if (targetDistance < 1.4 && Math.abs(bPos.y - botPos.y) < 1.5) {
+                        score += 100;
+                        document.getElementById('scoreVal').innerText = score;
+                        resetBotPosition(bot);
+                        hitRegistered = true;
+                    }
+                });
+
+                // Clear old distant bullets
+                if (bPos.y < 0.1 || Math.abs(bPos.x) > 120 || Math.abs(bPos.z) > 120) {
+                    // Rocket Jump logic check: If a missile hits near your feet, blast yourself skyward!
+                    let splashDistance = Math.hypot(pPos.x - bPos.x, pPos.z - bPos.z);
+                    if (splashDistance < 6 && bPos.y < 0.5) {
+                        playerEntity.body.velocity.set(playerEntity.body.velocity.x, 22, playerEntity.body.velocity.z);
+                    }
+                    hitRegistered = true;
+                }
+
+                if (hitRegistered) {
+                    b.parentNode.removeChild(b);
+                    activeProjectilesList.splice(i, 1);
+                }
             }
-            ctx.fillStyle = "#ff33aa"; ctx.fillRect(canvas.width * 0.7, canvas.height * 0.7, 70, 140);
-            document.getElementById('score').innerText = score;
-            requestAnimationFrame(loop);
+
+            // 3. Simple AI Tracking routines
+            activeBotsList.forEach(bot => {
+                let botPos = bot.getAttribute('position');
+                let dx = pPos.x - botPos.x;
+                let dz = pPos.z - botPos.z;
+                let angle = Math.atan2(dz, dx);
+
+                // Move bot smoothly closer to player position coordinates
+                if (Math.hypot(dx, dz) > 4) {
+                    bot.setAttribute('position', {
+                        x: botPos.x + Math.cos(angle) * 0.04,
+                        y: botPos.y,
+                        z: botPos.z + Math.sin(angle) * 0.04
+                    });
+                }
+            });
         }
+
+        // Delay engine initialization checking frames until component mounting updates complete
+        document.querySelector('a-scene').addEventListener('loaded', () => {
+            setTimeout(() => { loop(); }, 500);
+        });
     </script>
 </body>
 </html>
